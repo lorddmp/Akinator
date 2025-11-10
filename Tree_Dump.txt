@@ -1,0 +1,7 @@
+Digraph G{
+node681993344 [shape = record, label="{��c? | {<f0> да| <f1> нет}}"];
+node681995712 [shape = record, label="{f�"0? | {<f0> да| <f1> нет}}"];
+node681993344:<f0>->node0x630228a66dc0;
+node681995744 [shape = record, label="{Это неизвестно кто? | {<f0> да| <f1> нет}}"];
+node681993344:<f1>->node0x630228a66de0;
+}
