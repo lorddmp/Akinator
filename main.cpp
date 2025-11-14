@@ -1,17 +1,34 @@
 #include "tree.h"
 #include <stdio.h>
 
+#include <string.h>
+#include <assert.h>
+#include <stdlib.h>
+
 int main()
 {
     bool a = 1;
-    Node_t* n1 = Make_Node("Это неизвестно кто"); //?
+    // char* str = strdup("Это неизвестно кто");
+    // Node_t* n1 = Make_Node(str);
+
+    Node_t* n2 = Read_Tree();
+
+    if (n2 == NULL)
+    {
+        printf("Read_Tree returned NULL\n");
+        return 1;
+    }
 
     while(a)
-        a = Akinator(n1);
+        a = Akinator(n2);
     
-    Print_Tree(n1);
+    Print_Tree(n2);
 
-    Tree_Destructor(n1);
+    FILE* fp = fopen(SAVE_TREE_FILE, "w");
+    Save_Tree(n2, fp);
+    fclose(fp);
+
+    Tree_Destructor(n2);
 
     return 0;
 }

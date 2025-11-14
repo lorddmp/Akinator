@@ -2,33 +2,90 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <assert.h>
 
-void Print_Node(Node_t* node, FILE* fp)
-{
-    fprintf(fp, "node%p [shape = record, label=\"{" SPEC "? | {<f0> да| <f1> нет}}\"];\n", node, node->value);
+#define DUMP_TREE_FILE "Tree_Dump.txt"
 
-    if (node->left != NULL)
+#define IF_ERROR(arg)                                                                                   \
+do {                                                                                                    \
+    if (arg == NULL)                                                                                    \
+    {                                                                                                   \
+        fprintf(stderr, "ERROR in file: %s,\nfunction: %s,\n line: %d", __FILE__, __func__, __LINE__);  \
+        return NULL;                                                                                    \
+    }                                                                                                   \
+} while (0)
+
+Node_t* Read_Tree(void)
+{ 
+    FILE* fp = fopen(SAVE_TREE_FILE, "r");
+    struct stat stat1 = {};
+    int descriptor = fileno(fp);
+    int position = 0;
+    
+    fstat(descriptor, &stat1);
+
+    char* massive = (char*)calloc((size_t)stat1.st_size + 1, sizeof(char));
+    IF_ERROR(massive);
+
+    fread(massive, sizeof(char), (size_t)stat1.st_size, fp);
+
+    Node_t* node = Read_Node(&position, massive);
+    IF_ERROR(node);
+
+    free(massive);
+    fclose(fp);
+
+    return(node);
+}
+
+Node_t* Read_Node(int* position, char* massive)
+{
+    int num = 0;
+    Skip_Spaces(position, massive);
+
+    if (massive[*position] == '(')
     {
-        Print_Node(node->left, fp);
-        fprintf(fp, "node%p:<f0>->node%p;\n", node, node->left);
+        char* new_value = (char*)calloc(100, sizeof(char));
+        IF_ERROR(new_value);
+        Node_t* node = Make_Node(NULL);
+        (*position)++;
+        Skip_Spaces(position, massive);
+        sscanf(&massive[*position], "\"%[^\"]\"%n", new_value, &num); //aaaaaaaaaaaaaaa
+        node->value = new_value;
+        (*position) += num;
+        Skip_Spaces(position, massive);
+        node->left = Read_Node(position, massive);
+        node->right = Read_Node(position, massive);
+        Skip_Spaces(position, massive);
+        (*position)++;
+        return node;
     }
-    if (node->right != NULL)
+
+    if (!(strncmp(&massive[*position], "nil", 3)))
     {
-        Print_Node(node->right, fp);
-        fprintf(fp, "node%p:<f1>->node%p;\n", node, node->right);
+        *position += 3;
+        return NULL;
+    }
+    else
+    {
+        printf("Error in reading file\n");
+        return NULL;
     }
 }
 
-void Print_Tree(Node_t* node)
+Node_t* Make_Node(TreeElem_t value, Node_t* n1, Node_t* n2)
 {
-    FILE* fp = fopen("Tree_Dump.txt", "w");
+    Node_t* new_node = (Node_t*)calloc(1, sizeof(Node_t));
+    IF_ERROR(new_node);
 
-    fprintf(fp, "Digraph G{\n");//доп функция для печати Print_Tree
-    Print_Node(node, fp);
-    fprintf(fp, "}");
+    *new_node = {
+        .value = value,
+        .left = n1,
+        .right = n2
+    };
 
-    fclose(fp);
+    return new_node;
 }
 
 void In_Node(TreeElem_t new_value, Node_t* node)
@@ -41,7 +98,7 @@ void In_Node(TreeElem_t new_value, Node_t* node)
         In_Node(new_value, node->right);
     else
     {
-        Node_t* new_node = Make_Node(new_value, NULL, NULL);
+        Node_t* new_node = Make_Node(new_value);
 
         Node_t** var = (new_value < node->value) ? &node->left : &node->right;
 
@@ -49,38 +106,10 @@ void In_Node(TreeElem_t new_value, Node_t* node)
     }
 }
 
-Node_t* Make_Node(TreeElem_t value, Node_t* n1, Node_t* n2)
-{
-    Node_t* new_node = (Node_t*)calloc(1, sizeof(Node_t));
-
-    if (new_node == NULL)
-    {
-        fprintf(stderr, "CALLOC ERROR\n");
-        return NULL;
-    }
-
-    *new_node = {
-        .value = value,
-        .left = n1,
-        .right = n2
-    };
-
-    return new_node;
-}
-
-void Tree_Destructor(Node_t* node)
-{
-    if (node->left != NULL)
-        Tree_Destructor(node->left);
-
-    if (node->right != NULL)
-        Tree_Destructor(node->right);
-
-    free(node);
-}
-
 void Delete_Node(TreeElem_t bad_value, Node_t* node)
 {
+    assert(node);
+
     if (node->value == bad_value)
         Tree_Destructor(node);
     else if (node->left != NULL && node->left->value == bad_value)
@@ -102,93 +131,147 @@ void Delete_Node(TreeElem_t bad_value, Node_t* node)
 
 bool Akinator(Node_t* node)
 {
-    char* choose = (char*)calloc(4, sizeof(char));
-    int choose_from_func = 0;
+    assert(node);
 
-    if (choose == NULL)
-    {
-        fprintf(stderr, "CALLOC ERROR\n");
-        return NULL;
-    }
+    node = Asking_Questions(node);
+    IF_ERROR(node);
 
-    char* new_value = (char*)calloc(100, sizeof(char));
+    IF_ERROR(Is_Object_Right(node));
 
-    if (new_value == NULL)
-    {
-        fprintf(stderr, "CALLOC ERROR\n");
-        return NULL;
-    }
+    printf("Would you like to continue?\n");
 
-    char* new_quest = (char*)calloc(100, sizeof(char));
+    return Get_Answer();
+}
 
-    if (new_quest == NULL)
-    {
-        fprintf(stderr, "CALLOC ERROR\n");
-        return NULL;
-    }
+Node_t* Asking_Questions(Node_t* node)
+{
+    assert(node);
 
     printf(SPEC "?\n", node->value);
 
-    while (node->left != NULL)
+    while (node->left != NULL && node->right != NULL)
     {
-        scanf("%s", choose);
-        choose_from_func = Get_Answer(choose);
-        Clean_Buffer();
-
-        if (choose_from_func == 1)
+        if (Get_Answer())
             node = node->left;
-        else if (choose_from_func == 0)
-            node = node->right;
         else
-        {
-            printf("Wrong answer. Try again\n");
-            continue;
-        }
+            node = node->right;
 
         printf(SPEC "?\n", node->value);
     }
 
+    return node;
+}
+
+int Get_Answer(void)
+{
+    char choose[100] = {};
+
     while(1)
     {
-    scanf("%s", choose);
-    choose_from_func = Get_Answer(choose);
-    Clean_Buffer();
+        scanf("%s", choose);
+        Clean_Buffer();
 
-    if (choose_from_func == 1)
-    {
-        printf("Ha, Dima has written this perfect code\n");
-        break;
+        if (strcmp(choose, "yes") == 0)
+            return 1;
+        else if (strcmp(choose, "no") == 0)
+            return 0;
+        else 
+            printf("Wrong answer. Choose between yes/no: ");
     }
-    else if (choose_from_func == 0)
+}
+
+Node_t* Is_Object_Right(Node_t* node)
+{
+    assert(node);
+
+    if (Get_Answer())
+        printf("Ha, Dima has written this perfect code\n");
+    else
     {
+        char* new_value = (char*)calloc(100, sizeof(char));
+        IF_ERROR(new_value);
+
+        char* new_quest = (char*)calloc(100, sizeof(char));
+        IF_ERROR(new_quest);
+        
         printf("Oops, please write, what did you guess: ");
         scanf("%[^\n]", new_value);
         Clean_Buffer();
 
-        node->left = Make_Node(new_value, NULL, NULL);
-        node->right = Make_Node(node->value, NULL, NULL);
+        node->left = Make_Node(new_value);
+        node->right = Make_Node(node->value);
 
         printf("Please write a difference between my variant and yours: ");
         scanf("%[^\n]", new_quest);
         Clean_Buffer();
 
         node->value = new_quest;
-        break;
     }
+    return node;
+}
+
+void Save_Tree(Node_t* node, FILE* fp)
+{
+    assert(node);
+    fprintf(fp, "( ");
+    fprintf(fp, "\"%s\" ", node->value);
+
+    if (node->left != NULL)
+        Save_Tree(node->left, fp);
     else
-        printf("Wrong answer. Try again\n");
+        fprintf(fp, "nil ");
+
+    if (node->right != NULL)
+        Save_Tree(node->right, fp);
+    else
+        fprintf(fp, "nil ");
+
+    fprintf(fp, ") ");
+}
+
+void Print_Node(Node_t* node, FILE* fp)
+{
+    assert(node);
+    fprintf(fp, "node%p [shape = record, label=\"{" SPEC "? | {<f0> да| <f1> нет}}\"];\n", node, node->value);
+
+    if (node->left != NULL)
+    {
+        Print_Node(node->left, fp);
+        fprintf(fp, "node%p:<f0>->node%p;\n", node, node->left);
     }
+    if (node->right != NULL)
+    {
+        Print_Node(node->right, fp);
+        fprintf(fp, "node%p:<f1>->node%p;\n", node, node->right);
+    }
+}
 
-    printf("Would you like to continue?\n");
-    scanf("%s", choose);
-    choose_from_func = Get_Answer(choose);
-    Clean_Buffer();
+void Print_Tree(Node_t* node)
+{
+    assert(node);
+    FILE* fp = fopen(DUMP_TREE_FILE, "w");
 
-    free(choose);
-    free(new_value);
-    free(new_quest);
+    if (fp == NULL)
+        fprintf(stderr, "ERROR IN OPENING DUMP FILE\n");
 
-    return choose_from_func == 1 ? 1 : 0;
+    fprintf(fp, "Digraph G{\n");
+    Print_Node(node, fp);
+    fprintf(fp, "}");
+
+    fclose(fp);
+}
+
+void Tree_Destructor(Node_t* node)
+{
+    assert(node);
+    if (node->left != NULL)
+        Tree_Destructor(node->left);
+
+    if (node->right != NULL)
+        Tree_Destructor(node->right);
+
+    free(node->value);
+    free(node);
 }
 
 void Clean_Buffer(void)
@@ -196,12 +279,9 @@ void Clean_Buffer(void)
     while(getchar() != '\n');
 }
 
-bool Get_Answer(char* choose)
+void Skip_Spaces(int* position, char* massive)
 {
-    if (strcmp(choose, "yes") == 0)
-        return 1;
-    else if (strcmp(choose, "no") == 0)
-        return 0;
-    else 
-        return -1;
+    assert(massive);
+    while (massive[*position] == ' ')
+        (*position)++;
 }
