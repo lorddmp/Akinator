@@ -1,4 +1,9 @@
-#include "tree.h"
+#include "Akinator.h"
+#include "def_and_compar.h"
+#include "reading_tree.h"
+#include "save_and_print.h"
+#include "structs_and_types.h"
+#include "technic_func.h"
 #include <stdio.h>
 
 #include <string.h>
@@ -7,7 +12,6 @@
 
 int main()
 {
-    bool a = 1;
     // char* str = strdup("Это неизвестно кто");
     // Node_t* n1 = Make_Node(str);
 
@@ -15,18 +19,22 @@ int main()
 
     if (n2 == NULL)
     {
-        printf("Read_Tree returned NULL\n");
+        fprintf(stderr, "Read_Tree returned NULL\n");
         return 1;
     }
 
-    while(a)
-        a = Akinator(n2);
-    
-    Print_Tree(n2);
+    // Definition(n2, "Саша Мартынов");
+    Comparator(n2, "Дима Тюлькин", "Артем");
 
-    FILE* fp = fopen(SAVE_TREE_FILE, "w");
-    Save_Tree(n2, fp);
-    fclose(fp);
+    // Definition(n2, "Дима Тюлькин");
+
+    // while(Akinator(n2));
+    
+    // Print_Tree(n2);
+
+    // FILE* fp = fopen(SAVE_TREE_FILE, "w");
+    // Save_Tree(n2, fp);
+    // fclose(fp);
 
     Tree_Destructor(n2);
 
